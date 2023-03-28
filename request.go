@@ -8,16 +8,23 @@
 package req
 
 import (
+	"context"
 	"io"
 	"net/http"
+	"net/url"
 )
 
-func New(options ...option) (*http.Request, error) {
+func New(method, target string, options ...option) (*http.Request, error) {
 	c := newConfig(options)
-	request, err := http.NewRequest(c.method, c.target, c.body)
+	request, err := http.NewRequest(method, target, c.body)
 	if err != nil {
 		return request, err
 	}
+	request.Close = c.close
+	if c.ctx != nil {
+		request = request.WithContext(c.ctx)
+	}
+	request.URL.RawQuery = c.query.Encode()
 	for key, values := range c.headers {
 		for _, value := range values {
 			request.Header.Add(key, value)
@@ -26,14 +33,16 @@ func New(options ...option) (*http.Request, error) {
 	return request, err
 }
 
-type config struct {
-	method  string
-	target  string
+type cfg struct {
+	query   url.Values
 	headers http.Header
 	body    io.Reader
+	ctx     context.Context
+	close   bool
 }
 
-func newConfig(options []option) (result config) {
+func newConfig(options []option) (result cfg) {
+	result.query = make(url.Values)
 	result.headers = make(http.Header)
 	for _, opt := range options {
 		opt(&result)
@@ -41,36 +50,15 @@ func newConfig(options []option) (result config) {
 	return result
 }
 
-type option func(*config)
+type (
+	option  func(*cfg)
+	options struct{}
+)
 
-var Options singleton
+var Options options
 
-type singleton struct{}
-
-func (singleton) Method(method string) option {
-	return func(c *config) { c.method = method }
-}
-func (singleton) GET() option {
-	return Options.Method(http.MethodGet)
-}
-func (singleton) POST(body io.Reader) option {
-	return func(c *config) {
-		Options.Method(http.MethodPost)(c)
-		c.body = body
-	}
-}
-func (singleton) PUT(body io.Reader) option {
-	return func(c *config) {
-		Options.Method(http.MethodPut)(c)
-		c.body = body
-	}
-}
-func (singleton) DELETE() option {
-	return Options.Method(http.MethodDelete)
-}
-func (singleton) Target(t string) option {
-	return func(config *config) { config.target = t }
-}
-func (singleton) Header(key, value string) option {
-	return func(c *config) { c.headers.Set(key, value) }
-}
+func (options) Body(r io.Reader) option            { return func(c *cfg) { c.body = r } }
+func (options) Header(key, value string) option    { return func(c *cfg) { c.headers.Add(key, value) } }
+func (options) Query(key, value string) option     { return func(c *cfg) { c.query.Add(key, value) } }
+func (options) Context(ctx context.Context) option { return func(c *cfg) { c.ctx = ctx } }
+func (options) Close(b bool) option                { return func(c *cfg) { c.close = b } }
