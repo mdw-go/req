@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"req"
-	"req/internal/should"
+	"github.com/mdw-go/req"
+	"github.com/mdw-go/req/internal/should"
 )
 
 func TestSuite(t *testing.T) {

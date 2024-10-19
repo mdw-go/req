@@ -5,6 +5,7 @@
 // It also incorporates a namespacing technique oft-used in
 // library modules build by the developers at Smarty.
 // https://github.com/smarty
+// Oh, and it's a replacement for `http.NewRequest()`.
 package req
 
 import (
